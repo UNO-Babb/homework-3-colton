@@ -68,18 +68,21 @@ def setup_roll():
 
     if setup_rolls[1] is not None and setup_rolls[2] is not None:
         if setup_rolls[1] > setup_rolls[2]:
-            placement_order[:] = [1, 2, 2, 1, 1, 2]
+            placement_order[:] = [1, 2, 2, 1, 1, 2, 2, 1]
         elif setup_rolls[2] > setup_rolls[1]:
-            placement_order[:] = [2, 1, 1, 2, 2, 1]
+            placement_order[:] = [2, 1, 1, 2, 2, 1, 1, 2]
+
         else:
             setup_rolls[1], setup_rolls[2] = None, None
             event_log.append("Tie in setup rolls. Players must roll again.")
             return jsonify({"message": "Tie! Roll again.", "game_phase": game_phase})
+        
         game_phase = "placement"
         current_player = placement_order[0]
+        event_log.append("Players will now place 4 starting settlements each.")
+
     else:
         current_player = 2 if current_player == 1 else 1
-    event_log.append("Players will now place 3 starting settlements each.")
 
     return jsonify({"roll": roll, "message": f"You rolled: {roll}"})
 
