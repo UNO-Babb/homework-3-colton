@@ -9,10 +9,7 @@ import random
 
 app = Flask(__name__)
 
-# ======================
-# Game Setup
-# ======================
-
+#game structure
 tiles = [
     {"id": 1, "resource": "wood", "number": 8, "settlements": [], "contents": []},
     {"id": 2, "resource": "ore", "number": 6, "settlements": [], "contents": []},
@@ -26,7 +23,6 @@ tiles = [
     {"id": 10, "resource": "brick", "number": 6, "settlements": [], "contents": []},
 ]
 
-
 players = {
     1: {"name": "Player 1", "color": "red", "resources": {"wood": 0, "brick": 0, "wheat": 0, "ore": 0}, "points": 0},
     2: {"name": "Player 2", "color": "blue", "resources": {"wood": 0, "brick": 0, "wheat": 0, "ore": 0}, "points": 0},
@@ -36,14 +32,12 @@ current_player = 1
 rolled_this_turn = False
 
 setup_rolls = {1: None, 2: None}
-game_phase = "setup"  # setup, placement, main
+game_phase = "setup"  #setup, placement, main
 placement_order = []
 placement_index = 0
 event_log = []
 
-# ======================
-# Flask Routes
-# ======================
+#Flask routes
 
 @app.route('/')
 def index():
@@ -102,7 +96,7 @@ def place_starting_settlement():
     tile["contents"].append(f"Player {current_player}")
     players[current_player]["points"] += 1
 
-    # 🌟 Grant 1 resource if tile has a valid resource type
+    #Grant 1 resource if tile has a valid resource type
     resource = tile["resource"]
     if resource != "desert":
         players[current_player]["resources"][resource] += 1
@@ -206,7 +200,7 @@ def reset_game():
 @app.route('/save', methods=["POST"])
 def save_game():
     with open("game_save.txt", "w") as f:
-        # Game phase and current turn
+        #Game phase and current turn
         f.write(f"Phase: {game_phase}\n")
         f.write(f"Turn: {players[current_player]['name']}\n")
         f.write(f"Placement Index: {placement_index}\n")
@@ -216,20 +210,20 @@ def save_game():
         f.write(f"Player 1: {setup_rolls[1]}\n")
         f.write(f"Player 2: {setup_rolls[2]}\n")
 
-        # Resources
+        #Resources
         f.write("Resources:\n")
         for pid in players:
             res = players[pid]["resources"]
             res_str = ", ".join(f"{k}={v}" for k, v in res.items())
             f.write(f"Player {pid}: {res_str}\n")
 
-        # Tile contents
+        #Tile contents
         f.write("\nTiles:\n")
         for tile in tiles:
             if tile["contents"]:
                 f.write(f"{tile['id']}: {', '.join(tile['contents'])}\n")
 
-        # Event log
+        #Event log
         f.write("\nEvent Log:\n")
         for entry in event_log:
             f.write(entry + "\n")
@@ -310,11 +304,7 @@ def load_game():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
-
-
-# ======================
-# Tile Renderer
-# ======================
+#Game tile renderer
 
 @app.context_processor
 def utility_processor():
@@ -338,10 +328,6 @@ def utility_processor():
         display += "</div></div>"
         return Markup(display)
     return dict(render_tile=render_tile)
-
-# ======================
-# Run the App
-# ======================
 
 if __name__ == "__main__":
     app.run(debug=True)
