@@ -10,7 +10,7 @@ current_player = 1
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('boardgame.html')
 
 @app.route('/add_tile')
 def add_tile():

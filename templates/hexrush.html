@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HexRush</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .game-area {
+            flex: 1;
+        }
+        .info-box {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .board {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            margin: 5px 0;
+        }
+        .tile {
+            width: 80px;
+            height: 80px;
+            background-color: #fff;
+            border: 2px solid #444;
+            border-radius: 10px;
+            padding: 5px;
+            box-shadow: 2px 2px 4px #aaa;
+            cursor: pointer;
+        }
+        .tile:hover {
+            background-color: #e0f7fa;
+        }
+        .settlement {
+            margin-top: 5px;
+        }
+        .legend-box, .log-box {
+            width: 200px;
+            text-align: left;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 10px;
+            height: fit-content;
+        }
+        ul {
+            padding-left: 20px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🏝️ HexRush</h1>
+
+<div class="container">
+    <!-- Game Log Sidebar -->
+    <div class="log-box">
+        <h3>📜 Game Log</h3>
+        <ul>
+            {% for event in event_log|reverse %}
+                <li>{{ event }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Main Game Area -->
+    <div class="game-area">
+        <div class="info-box">
+            <h2>Turn: {{ players[current_player]["name"] }} ({{ players[current_player]["color"] }})</h2>
+            <div id="game-phase">Phase: {{ game_phase|capitalize }}</div>
+
+            {% if game_phase == 'setup' %}
+                <p>🎲 Roll to determine who goes first!</p>
+                <p>🔴 {{ setup_rolls[1] if setup_rolls[1] is not none else 'Not rolled' }}</p>
+                <p>🔵 {{ setup_rolls[2] if setup_rolls[2] is not none else 'Not rolled' }}</p>
+                {% if setup_rolls[current_player] is none %}
+                    <button onclick="setupRoll()">Roll Setup Dice</button>
+                {% else %}
+                    <p>You rolled: {{ setup_rolls[current_player] }}</p>
+                {% endif %}
+            {% elif game_phase == 'placement' %}
+                <p>Place starting settlement #{{ placement_index + 1 }} ({{ players[current_player]["name"] }})</p>
+            {% elif game_phase == 'main' %}
+                <div id="roll-result">🎲 Roll to begin your turn.</div>
+                <div id="resource-box">
+                    <p><strong>Player Resources</strong></p>
+                    <div style="display: flex; justify-content: space-around;">
+                        <div>
+                            <strong>{{ players[1]["name"] }} (🔴)</strong>
+                            <ul>
+                                {% for res, amt in players[1]["resources"].items() %}
+                                    <li>{{ res }}: {{ amt }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <div>
+                            <strong>{{ players[2]["name"] }} (🔵)</strong>
+                            <ul>
+                                {% for res, amt in players[2]["resources"].items() %}
+                                    <li>{{ res }}: {{ amt }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="rollDice()">🎲 Roll Dice</button>
+                <button onclick="endTurn()">🔁 End Turn</button>
+            {% endif %}
+
+            <button onclick="resetGame()">🧹 Reset Game</button>
+        </div>
+
+        <div class="board">
+            <!-- Tile Grid: 3-4-3 -->
+            <div class="row">
+                {% for tile in tiles[0:3] %}
+                    {{ render_tile(tile) }}
+                {% endfor %}
+            </div>
+            <div class="row">
+                {% for tile in tiles[3:7] %}
+                    {{ render_tile(tile) }}
+                {% endfor %}
+            </div>
+            <div class="row">
+                {% for tile in tiles[7:10] %}
+                    {{ render_tile(tile) }}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Legend -->
+    <div class="legend-box">
+        <h3>🧭 Legend</h3>
+        <ul style="list-style-type: none; padding-left: 0;">
+            <li>🌲 Forest = Wood</li>
+            <li>🧱 Hill = Brick</li>
+            <li>🌾 Meadow = Wheat</li>
+            <li>⛰️ Mountain = Ore</li>
+            <li>🏜️ Desert = No Resource</li>
+            <hr>
+            <li>🔴 Player 1 Settlement</li>
+            <li>🔵 Player 2 Settlement</li>
+            <hr>
+            <li>🎲 Dice Roll</li>
+            <li>🏆 Victory</li>
+        </ul>
+        <p style="font-size: 0.9em; margin-top: 10px;">
+            <strong>Note:</strong> The game starts with <strong>3 settlements</strong> per player.<br>
+            Each starting settlement grants <strong>1 matching resource</strong>
+            based on the tile it’s placed on — except deserts.
+        </p>
+    </div>
+</div>
+
+<script>
+    function setupRoll() {
+        fetch('/setup_roll', { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || ("You rolled: " + data.roll));
+                location.reload();
+            });
+    }
+
+    function handleTileClick(tileId) {
+        const phase = "{{ game_phase }}";
+        if (phase === "placement") {
+            fetch('/place_starting_settlement', {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tile_id: tileId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+        } else if (phase === "main") {
+            buildSettlement(tileId);
+        }
+    }
+
+    function rollDice() {
+        fetch('/roll_dice', { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                if (data.roll !== null) {
+                    alert(`🎲 Rolled: ${data.roll}`);
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+    }
+
+    function buildSettlement(tileId) {
+        fetch('/build_settlement', {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tile_id: tileId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.winner) {
+                    alert(data.winner + " wins the game! 🏆");
+                }
+                location.reload();
+            } else {
+                alert(data.message);
+            }
+        });
+    }
+
+    function endTurn() {
+        fetch('/end_turn', { method: "POST" })
+            .then(response => response.json())
+            .then(data => {
+                location.reload();
+            });
+    }
+
+    function resetGame() {
+        if (confirm("Are you sure you want to reset the game?")) {
+            fetch('/reset', { method: "POST" })
+                .then(response => response.json())
+                .then(data => {
+                    alert("Game has been reset.");
+                    location.reload();
+                });
+        }
+    }
+</script>
+
+</body>
+</html>
