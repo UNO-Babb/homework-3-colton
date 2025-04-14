@@ -99,7 +99,6 @@ def place_starting_settlement():
         return jsonify({"success": False, "message": "Invalid tile or already settled."})
 
     tile["settlements"].append(current_player)
-    tile["settlements"].append(current_player)
     tile["contents"].append(f"Player {current_player}")
     players[current_player]["points"] += 1
 
@@ -163,7 +162,6 @@ def build_settlement():
         resources[r] -= cost[r]
 
     tile["settlements"].append(current_player)
-    tile["settlements"].append(current_player)
     tile["contents"].append(f"Player {current_player}")
     players[current_player]["points"] += 1
     event_log.append(f"{players[current_player]['name']} built a settlement on Tile {tile_id}.")
@@ -211,8 +209,12 @@ def save_game():
         # Game phase and current turn
         f.write(f"Phase: {game_phase}\n")
         f.write(f"Turn: {players[current_player]['name']}\n")
+        f.write(f"Placement Index: {placement_index}\n")
         f.write(f"Player 1 Points: {players[1]['points']}\n")
         f.write(f"Player 2 Points: {players[2]['points']}\n")
+        f.write("Setup Rolls:\n")
+        f.write(f"Player 1: {setup_rolls[1]}\n")
+        f.write(f"Player 2: {setup_rolls[2]}\n")
 
         # Resources
         f.write("Resources:\n")
@@ -236,7 +238,8 @@ def save_game():
 
 @app.route("/load", methods=["POST"])
 def load_game():
-    global game_phase, current_player, placement_index, players, tiles, event_log
+    global game_phase, current_player, placement_index
+    global players, tiles, event_log, setup_rolls, placement_order
 
     try:
         with open("game_save.txt", "r") as f:
@@ -244,6 +247,8 @@ def load_game():
 
         section = ""
         event_log.clear()
+        setup_rolls[1] = None
+        setup_rolls[2] = None
 
         for line in lines:
             line = line.strip()
@@ -254,15 +259,18 @@ def load_game():
                 section = line[:-1]
                 continue
 
-            # Process based on section
             if section == "Phase":
                 game_phase = line.split(": ")[1]
             elif section == "Turn":
                 current_player = int(line.split(" ")[1])
+            elif section == "Placement Index":
+                placement_index = int(line.split(": ")[1])
             elif section == "Player 1 Points":
                 players[1]["points"] = int(line.split(": ")[1])
             elif section == "Player 2 Points":
                 players[2]["points"] = int(line.split(": ")[1])
+            elif section == "Setup Rolls":
+                pass  # no action, just a header
             elif section == "Resources":
                 if line.startswith("Player"):
                     pid = int(line.split(":")[0].split(" ")[1])
@@ -274,17 +282,34 @@ def load_game():
                 tid, content = line.split(": ")
                 tile = next((t for t in tiles if str(t["id"]) == tid), None)
                 tile["contents"] = [c.strip() for c in content.split(",")]
-                tile["settlements"] = [
-                    1 if "Player 1" in tile["contents"] else None,
-                    2 if "Player 2" in tile["contents"] else None
-                ]
-                tile["settlements"] = [p for p in tile["settlements"] if p]
+                tile["settlements"] = []
+                if "Player 1" in tile["contents"]:
+                    tile["settlements"].append(1)
+                if "Player 2" in tile["contents"]:
+                    tile["settlements"].append(2)
             elif section == "Event Log":
                 event_log.append(line)
+            elif section.startswith("Player") and "Setup Rolls" in lines:
+                # Catch setup rolls even if they show up like: Player 1: 8
+                pid = int(line.split(":")[0].split(" ")[1])
+                setup_rolls[pid] = int(line.split(": ")[1])
+
+        #Recalculate placement_order based on setup rolls
+        if setup_rolls[1] is not None and setup_rolls[2] is not None:
+            if setup_rolls[1] > setup_rolls[2]:
+                placement_order[:] = [1, 2, 2, 1, 1, 2, 2, 1]
+            elif setup_rolls[2] > setup_rolls[1]:
+                placement_order[:] = [2, 1, 1, 2, 2, 1, 1, 2]
+
+        #Set correct player in placement phase
+        if game_phase == "placement":
+            current_player = placement_order[placement_index]
 
         return jsonify({"success": True})
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
 
 
 # ======================

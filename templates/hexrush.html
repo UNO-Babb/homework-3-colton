@@ -283,12 +283,13 @@
         .then(data => {
             if (data.success) {
                 alert("Game loaded successfully!");
-                location.reload();
+                location.reload();  // ✅ THIS is required
             } else {
                 alert("Failed to load game: " + data.error);
             }
         });
-    }
+}
+
 
 
 </script>
