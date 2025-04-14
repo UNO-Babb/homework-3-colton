@@ -133,6 +133,8 @@
                 <button onclick="endTurn()">🔁 End Turn</button>
             {% endif %}
 
+            <button onclick="saveGame()">💾 Save Game</button>
+            <button onclick="loadGame()">📂 Load Game</button>
             <button onclick="resetGame()">🧹 Reset Game</button>
         </div>
         {% if game_phase == 'placement' %}
@@ -266,6 +268,29 @@
                 });
         }
     }
+    function saveGame() {
+    fetch('/save', { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Game saved to game_save.txt!");
+            }
+        });
+    }
+    function loadGame() {
+    fetch('/load', { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Game loaded successfully!");
+                location.reload();
+            } else {
+                alert("Failed to load game: " + data.error);
+            }
+        });
+    }
+
+
 </script>
 
 </body>

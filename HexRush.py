@@ -14,17 +14,18 @@ app = Flask(__name__)
 # ======================
 
 tiles = [
-    {"id": 1, "resource": "wood", "number": 8, "settlements": []},
-    {"id": 2, "resource": "ore", "number": 6, "settlements": []},
-    {"id": 3, "resource": "wheat", "number": 4, "settlements": []},
-    {"id": 4, "resource": "brick", "number": 5, "settlements": []},
-    {"id": 5, "resource": "wood", "number": 9, "settlements": []},
-    {"id": 6, "resource": "desert", "number": 7, "settlements": []},
-    {"id": 7, "resource": "wheat", "number": 10, "settlements": []},
-    {"id": 8, "resource": "ore", "number": 11, "settlements": []},
-    {"id": 9, "resource": "wood", "number": 3, "settlements": []},
-    {"id": 10, "resource": "brick", "number": 6, "settlements": []},
+    {"id": 1, "resource": "wood", "number": 8, "settlements": [], "contents": []},
+    {"id": 2, "resource": "ore", "number": 6, "settlements": [], "contents": []},
+    {"id": 3, "resource": "wheat", "number": 4, "settlements": [], "contents": []},
+    {"id": 4, "resource": "brick", "number": 5, "settlements": [], "contents": []},
+    {"id": 5, "resource": "wood", "number": 9, "settlements": [], "contents": []},
+    {"id": 6, "resource": "desert", "number": 7, "settlements": [], "contents": []},
+    {"id": 7, "resource": "wheat", "number": 10, "settlements": [], "contents": []},
+    {"id": 8, "resource": "ore", "number": 11, "settlements": [], "contents": []},
+    {"id": 9, "resource": "wood", "number": 3, "settlements": [], "contents": []},
+    {"id": 10, "resource": "brick", "number": 6, "settlements": [], "contents": []},
 ]
+
 
 players = {
     1: {"name": "Player 1", "color": "red", "resources": {"wood": 0, "brick": 0, "wheat": 0, "ore": 0}, "points": 0},
@@ -98,6 +99,8 @@ def place_starting_settlement():
         return jsonify({"success": False, "message": "Invalid tile or already settled."})
 
     tile["settlements"].append(current_player)
+    tile["settlements"].append(current_player)
+    tile["contents"].append(f"Player {current_player}")
     players[current_player]["points"] += 1
 
     # 🌟 Grant 1 resource if tile has a valid resource type
@@ -160,6 +163,8 @@ def build_settlement():
         resources[r] -= cost[r]
 
     tile["settlements"].append(current_player)
+    tile["settlements"].append(current_player)
+    tile["contents"].append(f"Player {current_player}")
     players[current_player]["points"] += 1
     event_log.append(f"{players[current_player]['name']} built a settlement on Tile {tile_id}.")
 
@@ -196,8 +201,91 @@ def reset_game():
 
     for tile in tiles:
         tile["settlements"] = []
+        tile["contents"] = []
 
     return jsonify({"success": True})
+
+@app.route('/save', methods=["POST"])
+def save_game():
+    with open("game_save.txt", "w") as f:
+        # Game phase and current turn
+        f.write(f"Phase: {game_phase}\n")
+        f.write(f"Turn: {players[current_player]['name']}\n")
+        f.write(f"Player 1 Points: {players[1]['points']}\n")
+        f.write(f"Player 2 Points: {players[2]['points']}\n")
+
+        # Resources
+        f.write("Resources:\n")
+        for pid in players:
+            res = players[pid]["resources"]
+            res_str = ", ".join(f"{k}={v}" for k, v in res.items())
+            f.write(f"Player {pid}: {res_str}\n")
+
+        # Tile contents
+        f.write("\nTiles:\n")
+        for tile in tiles:
+            if tile["contents"]:
+                f.write(f"{tile['id']}: {', '.join(tile['contents'])}\n")
+
+        # Event log
+        f.write("\nEvent Log:\n")
+        for entry in event_log:
+            f.write(entry + "\n")
+
+    return jsonify({"success": True})
+
+@app.route("/load", methods=["POST"])
+def load_game():
+    global game_phase, current_player, placement_index, players, tiles, event_log
+
+    try:
+        with open("game_save.txt", "r") as f:
+            lines = f.readlines()
+
+        section = ""
+        event_log.clear()
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.endswith(":") and not line.startswith("Player"):
+                section = line[:-1]
+                continue
+
+            # Process based on section
+            if section == "Phase":
+                game_phase = line.split(": ")[1]
+            elif section == "Turn":
+                current_player = int(line.split(" ")[1])
+            elif section == "Player 1 Points":
+                players[1]["points"] = int(line.split(": ")[1])
+            elif section == "Player 2 Points":
+                players[2]["points"] = int(line.split(": ")[1])
+            elif section == "Resources":
+                if line.startswith("Player"):
+                    pid = int(line.split(":")[0].split(" ")[1])
+                    parts = line.split(": ")[1].split(", ")
+                    for item in parts:
+                        k, v = item.split("=")
+                        players[pid]["resources"][k] = int(v)
+            elif section == "Tiles":
+                tid, content = line.split(": ")
+                tile = next((t for t in tiles if str(t["id"]) == tid), None)
+                tile["contents"] = [c.strip() for c in content.split(",")]
+                tile["settlements"] = [
+                    1 if "Player 1" in tile["contents"] else None,
+                    2 if "Player 2" in tile["contents"] else None
+                ]
+                tile["settlements"] = [p for p in tile["settlements"] if p]
+            elif section == "Event Log":
+                event_log.append(line)
+
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
 
 # ======================
 # Tile Renderer
